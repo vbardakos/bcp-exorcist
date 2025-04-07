@@ -1,0 +1,38 @@
+name: Invent the wheel
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build-wheels:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            container: false
+          - os: macos-latest
+            container: false
+          - os: windows-latest
+            container: false
+          - os: rhel8
+            container: true
+    runs-on: ${{ matrix.os }}
+    container: |
+      image: registry.access.redhat.com/ubi8/python-39  # Red Hat UBI Python 3.9 image
+      options: --user=root
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install maturin
+        run: pip install maturin
+      - name: Build wheels
+        run: maturin build --release --strip -i python3
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: target/wheels/*.whl
