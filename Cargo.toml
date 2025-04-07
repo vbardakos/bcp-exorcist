@@ -3,4 +3,15 @@ name = "bcp-exorcist"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "bcp_exorcist"
+crate-type = ["cdylib"]
+
 [dependencies]
+memchr = "2.7.4"
+pyo3 = { version = "0.24.1", features = ["extension-module"] }
+
+
+
+[profile.release]
+lto = true
