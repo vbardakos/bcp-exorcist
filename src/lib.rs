@@ -17,7 +17,7 @@ fn unwrap_byte(input: Option<&[u8]>, default: u8) -> PyResult<u8> {
                 String::from_utf8_lossy(cs),
                 cs.len(),
             );
-            return Err(PyErr::new::<PyTypeError, _>(msg));
+            return Err(PyTypeError::new_err(msg));
         }
     };
     Ok(out)
@@ -90,9 +90,7 @@ fn exorcize_csv(
         Err(e) => {
             fs::rename(filepath, format!("{filepath}.broken"))?;
             fs::rename(bak, filepath)?;
-            Err(PyErr::new::<PyRuntimeError, _>(format!(
-                "✝️ exorcism failed: {e}"
-            )))
+            Err(PyRuntimeError::new_err(format!("✝️ exorcism failed: {e}")))
         }
     }
 }
