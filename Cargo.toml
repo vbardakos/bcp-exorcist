@@ -9,9 +9,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 memchr = "2.7.4"
-pyo3 = { version = "0.24.1", features = ["extension-module"] }
-
-
+# "abi3-py39" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.9
+pyo3 = { version = "0.24.1", features = ["extension-module", "generate-import-lib", "abi3-py39"] }
 
 [profile.release]
 lto = true
