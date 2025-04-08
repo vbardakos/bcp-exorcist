@@ -17,7 +17,7 @@ impl Default for TmpOptions {
 }
 
 #[inline(always)]
-pub(crate) fn exorsize_csv<R, W>(
+pub(crate) fn exorcize_csv<R, W>(
     input: R,
     output: W,
     size: u64,
@@ -51,14 +51,14 @@ where
         // clear buffer
         out.clear();
 
-        exorsize_csv_batch(&buf[..read], &mut out, opts.sep, opts.eol)?;
+        exorcize_csv_batch(&buf[..read], &mut out, opts.sep, opts.eol)?;
     }
 
     handle_closing(&mut out, &mut writer)
 }
 
 #[inline(always)]
-fn exorsize_csv_batch(haystack: &[u8], buf: &mut Vec<u8>, sep: u8, eol: u8) -> io::Result<()> {
+fn exorcize_csv_batch(haystack: &[u8], buf: &mut Vec<u8>, sep: u8, eol: u8) -> io::Result<()> {
     let mut idx = 0;
     for pos in memchr3_iter(sep, eol, b'"', haystack) {
         buf.extend_from_slice(&haystack[idx..pos]);
@@ -113,36 +113,36 @@ where
 
 #[cfg(test)]
 mod tests {
-    use io::{Seek, SeekFrom};
-
     use super::*;
+    use io::{Seek, SeekFrom};
+    use rstest::*;
     use std::io::Cursor;
 
-    #[test]
+    #[rstest]
     fn test_default_tmp_options() {
         let opts = TmpOptions::default();
         assert_eq!(opts.sep, b'\x1E');
         assert_eq!(opts.eol, b'\x1D');
     }
 
-    #[test]
-    fn test_exorsize_csv_empty_input() {
+    #[rstest]
+    fn test_exorcize_csv_empty_input() {
         let input = Cursor::new(Vec::new());
         let output = Vec::new();
         let opts = TmpOptions::default();
 
-        let result = exorsize_csv(input, output, 0, 1024, &opts);
+        let result = exorcize_csv(input, output, 0, 1024, &opts);
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_exorsize_csv_basic() {
+    #[rstest]
+    fn test_exorcize_csv_basic() {
         let input_data = b"field1\x1Efield2\x1Dfield3";
         let input = Cursor::new(input_data.to_vec());
         let mut output = Cursor::new(Vec::new());
         let opts = TmpOptions::default();
 
-        let result = exorsize_csv(input, &mut output, input_data.len() as u64, 1024, &opts);
+        let result = exorcize_csv(input, &mut output, input_data.len() as u64, 1024, &opts);
         assert!(result.is_ok());
 
         let result = output.seek(SeekFrom::Start(0));
@@ -154,14 +154,17 @@ mod tests {
         assert_eq!(result, expected_output);
     }
 
-    #[test]
-    fn test_exorsize_csv_with_escape_characters() {
-        let input_data = b"field1\\\x1Efield2\\\x1Dfield3";
-        let input = Cursor::new(input_data.to_vec());
+    #[rstest]
+    #[case(
+        b"field1\\\x1Efield2\\\x1Dfield3",
+        "\"field1\\\\\",\"field2\\\\\"\n\"field3\""
+    )]
+    fn test_exorcize_csv_with_escape_characters(#[case] data: &[u8], #[case] expected: &str) {
+        let input = Cursor::new(data.to_vec());
         let mut output = Cursor::new(Vec::new());
         let opts = TmpOptions::default();
 
-        let result = exorsize_csv(input, &mut output, input_data.len() as u64, 1024, &opts);
+        let result = exorcize_csv(input, &mut output, data.len() as u64, 1024, &opts);
         assert!(result.is_ok());
 
         let result = output.seek(SeekFrom::Start(0));
@@ -169,56 +172,43 @@ mod tests {
 
         let mut result = String::new();
         output.read_to_string(&mut result).unwrap();
-
-        let expected_output = "\"field1\\\\\",\"field2\\\\\"\n\"field3\"";
-        assert_eq!(result, expected_output);
+        assert_eq!(result, expected);
     }
 
-    #[test]
-    fn test_exorsize_csv_batch() {
-        let cases = &[
-            (
-                "field1\x1Efield2\x1Efield3\x1D",
-                "field1\",\"field2\",\"field3\"\n\"",
-            ),
-            (
-                "field1\x1Dfield2\x1Dfield3\x1D",
-                "field1\"\n\"field2\"\n\"field3\"\n\"",
-            ),
-            ("\x1E\x1E\x1D", "\",\"\",\"\"\n\""),
-            ("\\\x1E\\\x1E\\\x1D", "\\\\\",\"\\\\\",\"\\\\\"\n\""),
-            ("\0\x1E\0\x1E\0\x1D", "\0\",\"\0\",\"\0\"\n\""),
-        ];
+    #[rstest]
+    #[case("field1\x1Efield2\x1Efield3\x1D", "field1\",\"field2\",\"field3\"\n\"")]
+    #[case(
+        "field1\x1Dfield2\x1Dfield3\x1D",
+        "field1\"\n\"field2\"\n\"field3\"\n\""
+    )]
+    #[case(
+        "\"\"field\",\"field\",field\"\x1Efield3\x1D",
+        "\\\"\\\"field\\\",\\\"field\\\",field\\\"\",\"field3\"\n\""
+    )]
+    #[case("\x1E\x1E\x1D", "\",\"\",\"\"\n\"")]
+    #[case("\\\x1E\\\x1E\\\x1D", "\\\\\",\"\\\\\",\"\\\\\"\n\"")]
+    #[case("\0\x1E\0\x1E\0\x1D", "\0\",\"\0\",\"\0\"\n\"")]
+    fn test_exorcize_csv_batch(#[case] haystack: &str, #[case] expected: &str) {
+        let mut buf = Vec::new();
+        let sep = b'\x1E';
+        let eol = b'\x1D';
 
-        for (haystack, expected) in cases {
-            let mut buf = Vec::new();
-            let sep = b'\x1E';
-            let eol = b'\x1D';
-
-            let result = exorsize_csv_batch(haystack.as_bytes(), &mut buf, sep, eol);
-            assert!(result.is_ok());
-
-            // let expected_output = b"field1\",\"field2\"\n\"field3";
-            assert_eq!(buf, *expected.as_bytes());
-        }
+        let result = exorcize_csv_batch(haystack.as_bytes(), &mut buf, sep, eol);
+        assert!(result.is_ok());
+        assert_eq!(buf, expected.as_bytes());
     }
 
-    #[test]
-    fn test_handle_closing() {
-        let cases = &[
-            ("field1\",\"field2\"", "field1\",\"field2\""),
-            ("field1\",\"field2\"\n", "field1\",\"field2\"\n"),
-            ("field1\",\"field2\"\n\"", "field1\",\"field2\"\n"),
-            ("field1\",\"field2", "field1\",\"field2\""),
-        ];
+    #[rstest]
+    #[case("field1\",\"field2\"", "field1\",\"field2\"")]
+    #[case("field1\",\"field2\"\n", "field1\",\"field2\"\n")]
+    #[case("field1\",\"field2\"\n\"", "field1\",\"field2\"\n")]
+    #[case("field1\",\"field2", "field1\",\"field2\"")]
+    fn test_handle_closing(#[case] buf: &str, #[case] exp: &str) {
+        let mut writer = BufWriter::new(Vec::new());
 
-        for (buf, exp) in cases {
-            let mut writer = BufWriter::new(Vec::new());
+        let result = handle_closing(&mut buf.as_bytes().to_vec(), &mut writer);
+        assert!(result.is_ok());
 
-            let result = handle_closing(&mut buf.as_bytes().to_vec(), &mut writer);
-            assert!(result.is_ok());
-
-            assert_eq!(writer.into_inner().unwrap(), *exp.as_bytes());
-        }
+        assert_eq!(writer.into_inner().unwrap(), exp.as_bytes());
     }
 }

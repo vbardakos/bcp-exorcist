@@ -15,3 +15,6 @@ pyo3 = { version = "0.24.1", features = ["extension-module"] }
 
 [profile.release]
 lto = true
+
+[dev-dependencies]
+rstest = "0.25.0"
